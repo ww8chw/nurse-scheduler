@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>護理師月排班系統</title>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+    background: #f0f4f8;
+    color: #222;
+    line-height: 1.6;
+    padding: 20px;
+  }
+  .container { max-width: 1500px; margin: 0 auto; }
+  h1 { color: #2c5282; margin-bottom: 20px; text-align: center; }
+  h2 { color: #2d3748; margin-bottom: 12px; font-size: 1.25rem; }
+  .card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  }
+  .input-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  input[type="number"] {
+    width: 80px;
+    padding: 6px 10px;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  button {
+    background: #3182ce;
+    color: white;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  button:hover { background: #2c5282; }
+  button:disabled { background: #a0aec0; cursor: not-allowed; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td {
+    border: 1px solid #e2e8f0;
+    padding: 6px 4px;
+    text-align: center;
+  }
+  th { background: #edf2f7; font-weight: 600; }
+  .saturday { background: #fff5e6; }
+  .sunday { background: #ffe6e6; }
+  .holiday { background: #fde2e2; }
+  .holiday-tag {
+    display: inline-block;
+    font-size: 10px;
+    color: #c53030;
+    background: #fed7d7;
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-top: 2px;
+  }
+  .shift-morning { background: #d6f5d6; color: #1a4d1a; font-weight: 600; font-size: 13px; }
+  .shift-all { background: #b7e4b7; color: #0f3d0f; font-weight: 700; font-size: 13px; }
+  .shift-pm-night { background: #d6e8f5; color: #1a3d4d; font-weight: 600; font-size: 13px; }
+  .shift-aesthetic { background: #f5d6e8; color: #4d1a3d; font-weight: 700; font-size: 14px; }
+  .shift-off { background: #f7fafc; color: #cbd5e0; }
+  .shift-unavailable {
+    background: #fc8181;
+    color: white;
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .export-btn {
+    background: #38a169;
+    margin-left: 10px;
+  }
+  .export-btn:hover { background: #2f855a; }
+  #export-section {
+    margin: 16px 0;
+    padding: 12px;
+    background: #f0fff4;
+    border-radius: 6px;
+    border-left: 4px solid #38a169;
+  }
+  .editable-cell {
+    cursor: pointer;
+    transition: outline 0.1s;
+  }
+  .editable-cell:hover {
+    outline: 2px solid #3182ce;
+    outline-offset: -2px;
+  }
+  .shift-select {
+    width: 100%;
+    padding: 2px 4px;
+    border: 2px solid #3182ce;
+    border-radius: 3px;
+    font-size: 12px;
+    background: white;
+    font-weight: 600;
+  }
+  .constraint-grid {
+    overflow-x: auto;
+    margin-top: 10px;
+  }
+  .constraint-grid td {
+    width: 32px;
+    height: 36px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .constraint-grid td:hover:not(.name-cell) { background: #fed7d7; }
+  .constraint-grid td.unavailable {
+    background: #fc8181 !important;
+    color: white;
+    font-weight: 700;
+  }
+  .constraint-grid td.name-cell {
+    cursor: default;
+    text-align: left;
+    padding-left: 10px;
+    font-weight: 600;
+    min-width: 110px;
+  }
+  .constraint-grid td.name-cell:hover { background: inherit; }
+  .legend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    font-size: 13px;
+    padding: 12px;
+    background: #f7fafc;
+    border-radius: 6px;
+  }
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-box {
+    display: inline-block;
+    width: 36px;
+    height: 22px;
+    border: 1px solid #aaa;
+    text-align: center;
+    font-weight: 600;
+    border-radius: 3px;
+    line-height: 22px;
+    font-size: 12px;
+  }
+  .summary-table { margin-top: 16px; }
+  .summary-table td { padding: 8px 12px; }
+  .positive-hours { color: #2c5282; font-weight: 700; }
+  .negative-hours { color: #c53030; font-weight: 700; }
+  .zero-hours { color: #38a169; font-weight: 700; }
+  .hint { color: #718096; font-size: 13px; margin: 8px 0; }
+  .schedule-table th { position: sticky; top: 0; background: #edf2f7; }
+  .nurse-info {
+    background: #ebf8ff;
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+  .progress-info {
+    color: #4a5568;
+    font-size: 13px;
+    margin-left: 10px;
+  }
+  .day-block {
+    display: inline-block;
+    padding: 2px 8px;
+    margin: 2px;
+    font-size: 12px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  .info-row {
+    background: #fff7e6;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin: 10px 0;
+    font-size: 14px;
+    border-left: 4px solid #f6ad55;
+  }
+  .target-info {
+    background: #e6fffa;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin: 10px 0;
+    font-size: 14px;
+    border-left: 4px solid #38b2ac;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🏥 護理師月排班系統</h1>
+
+  <div class="card">
+    <h2>步驟 1：選擇月份</h2>
+    <div class="input-group">
+      <label>年份：<input type="number" id="year" value="2026" min="2025" max="2030"></label>
+      <label>月份：<input type="number" id="month" value="6" min="1" max="12"></label>
+      <button onclick="loadCalendar()">載入月份</button>
+    </div>
+    <div class="nurse-info" style="margin-top: 12px;">
+      <strong>護理師名單：</strong>
+      黃苡甄（不排醫美診）、吳依純、黃品瑜、黃品婕、林亭君
+    </div>
+    <div class="target-info" id="target-info" style="display:none;"></div>
+  </div>
+
+  <div class="card" id="constraints-card" style="display:none;">
+    <h2>步驟 2：設定不能排班的日期</h2>
+    <p class="hint">點擊格子標記該護理師當天「不能排班」（紅色 ✕ = 不排）。再次點擊可取消。</p>
+    <div class="constraint-grid" id="constraints-grid"></div>
+  </div>
+
+  <div class="card" id="carry-forward-card" style="display:none;">
+    <h2>步驟 2.5：個別護理師需補的負時數（前月累積）</h2>
+    <p class="hint">依協議第 3.3 條，前月累積之負時數需於「次次月」補足。<br>
+    若該護理師上月或前月有負時數要補，請輸入小時數（正整數）。系統會自動將此時數加到該人的本月應上工時目標。</p>
+    <div id="carry-forward-inputs" style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;"></div>
+  </div>
+
+  <div class="card" id="generate-card" style="display:none;">
+    <h2>步驟 3：產生排班表</h2>
+    <button onclick="generateSchedule()" id="gen-btn">🎲 開始排班</button>
+    <span class="progress-info" id="progress"></span>
+    <p class="hint">系統會嘗試 3000 種排班組合，挑選符合以下條件的最佳方案：<br>
+    ✓ 休假日平均 ✓ 工時最接近應上工時 ✓ <strong>連上 2-4 天</strong> ✓ <strong>午晚診/醫美診/週六日班平均</strong><br>
+    ✓ <strong>每 7 天內至少休 2 天</strong> ✓ 避免連休中卡 1 天班<br>
+    🌟 <strong>最大化「連假」（3+ 天連休）— 確保每人都有至少 1 次 3+ 天連休</strong></p>
+  </div>
+
+  <div class="card" id="result-card" style="display:none;">
+    <h2>📋 排班結果</h2>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-box shift-morning">A</span>早診 (4hr)</span>
+      <span class="legend-item"><span class="legend-box shift-all">A+B+C</span>早午晚診 (10hr)</span>
+      <span class="legend-item"><span class="legend-box shift-pm-night">B+C</span>午晚診 (6hr)</span>
+      <span class="legend-item"><span class="legend-box shift-aesthetic">2F</span>醫美診 (9hr)</span>
+      <span class="legend-item"><span class="legend-box shift-off">─</span>休假</span>
+      <span class="legend-item"><span class="legend-box shift-unavailable">OFF</span>指定休假</span>
+    </div>
+    <div id="export-section">
+      <strong>📸 匯出班表：</strong>
+      <button class="export-btn" onclick="exportAsImage()">📷 下載班表圖片 (PNG)</button>
+      <button onclick="goToPreviousGeneration()" style="background:#805ad5;margin-left:10px;">⏪ 上一版排班</button>
+      <button onclick="goToNextGeneration()" style="background:#805ad5;margin-left:4px;">⏩ 下一版排班</button>
+      <button onclick="undoLastChange()" style="background:#ed8936;margin-left:6px;">↩️ 復原上一步</button>
+      <button onclick="resetAllChanges()" style="background:#e53e3e;margin-left:6px;">🔄 全部重置</button>
+      <span style="font-size:12px;color:#718096;margin-left:8px;" id="history-info">尚未修改</span>
+    </div>
+    <div id="schedule"></div>
+
+    <h2 style="margin-top: 24px;">📊 月工時統計（正/負時數）</h2>
+    <div id="summary"></div>
+
+    <h2 style="margin-top: 24px;">📅 個人連續上班/連休區塊</h2>
+    <div id="blocks"></div>
+  </div>
+</div>
+
+<script>
+// ========== 護理師設定 ==========
+const NURSES = [
+  { id: 'N1', name: '黃苡甄', noAesthetic: true },
+  { id: 'N2', name: '吳依純', noAesthetic: false },
+  { id: 'N3', name: '黃品瑜', noAesthetic: false },
+  { id: 'N4', name: '黃品婕', noAesthetic: false },
+  { id: 'N5', name: '林亭君', noAesthetic: false },
+];
+
+// ========== 班別定義 ==========
+// 內部代號 / 工時 / 顯示文字 / CSS class
+// MORN  早診         4hr -> 顯示 A
+// FULL  早午晚診     10hr -> 顯示 A+B+C
+// PMNT  午晚診       6hr -> 顯示 B+C
+// AESTH 醫美診       9hr -> 顯示 美
+const SHIFT_INFO = {
+  MORN:  { hours: 4,  display: 'A',     css: 'shift-morning'   },
+  FULL:  { hours: 10, display: 'A+B+C', css: 'shift-all'       },
+  PMNT:  { hours: 6,  display: 'B+C',   css: 'shift-pm-night'  },
+  AESTH: { hours: 9,  display: '2F',    css: 'shift-aesthetic' },
+};
+
+// 每日需求：dow = 0(日) ~ 6(六)
+const DAILY_REQ = {
+  0: { MORN: 2 },                                  // 日：2 早診
+  1: { FULL: 2, PMNT: 1 },                         // 一：2 早午晚 + 1 午晚
+  2: { FULL: 2, AESTH: 1 },                        // 二：2 早午晚 + 1 醫美
+  3: { FULL: 2, AESTH: 1 },                        // 三：2 早午晚 + 1 醫美
+  4: { FULL: 2, PMNT: 1, AESTH: 1 },               // 四：2 早午晚 + 1 午晚 + 1 醫美
+  5: { FULL: 2, PMNT: 1, AESTH: 1 },               // 五：2 早午晚 + 1 午晚 + 1 醫美
+  6: { MORN: 3, AESTH: 1 },                        // 六：3 早診 + 1 醫美
+};
+
+const DOW_NAMES = ['日', '一', '二', '三', '四', '五', '六'];
+
+// ========== 2026 國定假日（依行政院人事行政總處公告） ==========
+// key: 'YYYY-MM-DD', value: 假日名稱
+const HOLIDAYS = {
+  // 2025
+  '2025-01-01': '元旦',
+  '2025-02-28': '和平紀念日',
+  '2025-04-03': '兒童節清明節調整',
+  '2025-04-04': '兒童節',
+  '2025-05-01': '勞動節',
+  '2025-10-10': '國慶日',
+  // 2026
+  '2026-01-01': '中華民國開國紀念日',
+  '2026-02-16': '農曆除夕',
+  '2026-02-17': '春節初一',
+  '2026-02-18': '春節初二',
+  '2026-02-19': '春節初三',
+  '2026-02-20': '春節調整放假',
+  '2026-02-27': '和平紀念日調整放假',
+  '2026-02-28': '和平紀念日',
+  '2026-04-03': '兒童節調整放假',
+  '2026-04-04': '兒童節',
+  '2026-04-05': '民族掃墓節',
+  '2026-04-06': '清明節調整放假',
+  '2026-05-01': '勞動節',
+  '2026-06-19': '端午節',
+  '2026-09-25': '中秋節',
+  '2026-09-28': '教師節',
+  '2026-10-09': '國慶日調整放假',
+  '2026-10-10': '國慶日',
+  '2026-10-25': '臺灣光復暨金門古寧頭大捷紀念日',
+  '2026-10-26': '光復節調整放假',
+  '2026-12-25': '行憲紀念日',
+  // 2027（暫估）
+  '2027-01-01': '元旦',
+  '2027-02-06': '農曆除夕',
+  '2027-02-07': '春節初一',
+  '2027-02-08': '春節初二',
+  '2027-02-09': '春節初三',
+};
+
+function fmtDate(year, month, day) {
+  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
+function isHoliday(year, month, day) {
+  return !!HOLIDAYS[fmtDate(year, month, day)];
+}
+
+function getHolidayName(year, month, day) {
+  return HOLIDAYS[fmtDate(year, month, day)] || '';
+}
+
+// ========== 工時計算 ==========
+let currentDays = [];
+let currentYear = 2026;
+let currentMonth = 6;
+let constraints = {};
+let monthlyTargetHours = 0;
+let monthlyWorkingDays = 0;
+let currentResult = null;  // 全域儲存當前排班結果，用於手動修改
+let originalSchedule = null;  // 排班器最初產生的版本（重置用）
+let editHistory = [];  // 手動修改歷史堆疊（復原用）
+let generationHistory = [];  // 「開始排班」歷史版本（往前）
+let generationFuture = [];   // 「開始排班」未來版本（往後）
+let carryForwardHours = {};  // 每位護理師累積需補的負時數（依協議第 3.3 條）
+
+function calculateMonthlyTarget(year, month) {
+  const lastDay = new Date(year, month, 0).getDate();
+  let workingDays = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const dow = new Date(year, month - 1, d).getDay();
+    const isWeekend = (dow === 0 || dow === 6);
+    const holiday = isHoliday(year, month, d);
+    if (!isWeekend && !holiday) {
+      workingDays++;
+    }
+  }
+  return { workingDays, targetHours: workingDays * 8 };
+}
+
+function getDaysInMonth(year, month) {
+  const days = [];
+  const lastDay = new Date(year, month, 0).getDate();
+  for (let d = 1; d <= lastDay; d++) {
+    const date = new Date(year, month - 1, d);
+    days.push({
+      date: d,
+      dow: date.getDay(),
+      isHoliday: isHoliday(year, month, d),
+      holidayName: getHolidayName(year, month, d),
+      requirements: DAILY_REQ[date.getDay()]
+    });
+  }
+  return days;
+}
+
+// ========== 載入月份 ==========
+function loadCalendar() {
+  currentYear = +document.getElementById('year').value;
+  currentMonth = +document.getElementById('month').value;
+  currentDays = getDaysInMonth(currentYear, currentMonth);
+  constraints = {};
+  NURSES.forEach(n => constraints[n.id] = []);
+
+  // 計算當月應上工時
+  const { workingDays, targetHours } = calculateMonthlyTarget(currentYear, currentMonth);
+  monthlyTargetHours = targetHours;
+  monthlyWorkingDays = workingDays;
+
+  // 列出當月的國定假日
+  const holidayList = currentDays
+    .filter(d => d.isHoliday)
+    .map(d => `${d.date}日(${DOW_NAMES[d.dow]}) ${d.holidayName}`)
+    .join('、');
+
+  const totalDays = currentDays.length;
+  const weekendCount = currentDays.filter(d => d.dow === 0 || d.dow === 6).length;
+  const weekdayHolidayCount = currentDays.filter(d => d.isHoliday && d.dow !== 0 && d.dow !== 6).length;
+
+  document.getElementById('target-info').style.display = 'block';
+  document.getElementById('target-info').innerHTML = `
+    <strong>📐 ${currentYear} 年 ${currentMonth} 月 工時計算</strong><br>
+    當月總天數：${totalDays} 天 ｜ 週休：${weekendCount} 天 ｜ 平日國定假日：${weekdayHolidayCount} 天<br>
+    <strong>工作日 = ${totalDays} − ${weekendCount} − ${weekdayHolidayCount} = ${workingDays} 天</strong><br>
+    <strong>每人應上工時 = ${workingDays} × 8 = ${targetHours} 小時/月</strong>
+    ${holidayList ? '<br>本月國定假日：' + holidayList : ''}
+  `;
+
+  renderConstraintsGrid();
+  renderCarryForwardInputs();
+  document.getElementById('constraints-card').style.display = 'block';
+  document.getElementById('carry-forward-card').style.display = 'block';
+  document.getElementById('generate-card').style.display = 'block';
+  document.getElementById('result-card').style.display = 'none';
+}
+
+function renderCarryForwardInputs() {
+  const container = document.getElementById('carry-forward-inputs');
+  let html = '';
+  NURSES.forEach(n => {
+    if (carryForwardHours[n.id] === undefined) carryForwardHours[n.id] = 0;
+    html += `
+      <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;background:#f7fafc;border-radius:6px;">
+        <strong style="min-width:80px;">${n.name}：</strong>
+        <span style="font-size:13px;">需補</span>
+        <input type="number" min="0" step="1" value="${carryForwardHours[n.id]}"
+               data-nurse="${n.id}" onchange="updateCarryForward(this)"
+               style="width:60px;text-align:center;">
+        <span style="font-size:13px;">小時</span>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+function updateCarryForward(input) {
+  const nurseId = input.dataset.nurse;
+  const value = Math.max(0, parseInt(input.value) || 0);
+  carryForwardHours[nurseId] = value;
+  input.value = value;
+}
+
+function renderConstraintsGrid() {
+  const grid = document.getElementById('constraints-grid');
+  let html = '<table><thead><tr><th>護理師</th>';
+  currentDays.forEach(d => {
+    const dowName = DOW_NAMES[d.dow];
+    let cls = '';
+    if (d.isHoliday) cls = 'holiday';
+    else if (d.dow === 6) cls = 'saturday';
+    else if (d.dow === 0) cls = 'sunday';
+    html += `<th class="${cls}">${d.date}<br><small>${dowName}</small>${d.isHoliday ? '<br><span class="holiday-tag">假</span>' : ''}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  NURSES.forEach(n => {
+    html += `<tr><td class="name-cell">${n.name}${n.noAesthetic ? '<br><small style="color:#999">不排醫美</small>' : ''}</td>`;
+    currentDays.forEach(d => {
+      let cls = '';
+      if (d.isHoliday) cls = 'holiday';
+      else if (d.dow === 6) cls = 'saturday';
+      else if (d.dow === 0) cls = 'sunday';
+      html += `<td class="${cls}" data-nurse="${n.id}" data-day="${d.date}" onclick="toggleConstraint(this)"></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  grid.innerHTML = html;
+}
+
+function toggleConstraint(cell) {
+  const nurseId = cell.dataset.nurse;
+  const day = +cell.dataset.day;
+  const list = constraints[nurseId];
+  const idx = list.indexOf(day);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+    cell.classList.remove('unavailable');
+    cell.textContent = '';
+  } else {
+    list.push(day);
+    cell.classList.add('unavailable');
+    cell.textContent = '✕';
+  }
+}
+
+// ========== 排班演算法 ==========
+function tryAssign(days, constraints, seed) {
+  let rngState = seed;
+  const rng = () => {
+    rngState = (rngState * 1664525 + 1013904223) % 4294967296;
+    return rngState / 4294967296;
+  };
+
+  const schedule = {};
+  const stats = {};
+  NURSES.forEach(n => {
+    stats[n.id] = {
+      hours: 0, days: 0, lastDay: -10, streak: 0,
+      aesthCount: 0, pmntCount: 0, weekendCount: 0,
+      workHistory: []  // 紀錄每天是否上班（boolean，按日期順序）
+    };
+  });
+
+  // 每次 tryAssign 給每位護理師一個「整局偏好擾動」，讓不同種子產生顯著不同的結果
+  const personalPerturbation = {};
+  NURSES.forEach(n => {
+    personalPerturbation[n.id] = (rng() - 0.5) * 8;  // ±4 分擾動
+  });
+
+  // 計算前 6 天內已上班次數
+  const recentWorkCount = (nurseId, currentDay) => {
+    const hist = stats[nurseId].workHistory;
+    const start = Math.max(0, hist.length - 6);
+    let count = 0;
+    for (let i = start; i < hist.length; i++) {
+      if (hist[i]) count++;
+    }
+    return count;
+  };
+
+  for (const day of days) {
+    const required = day.requirements;
+    const totalSlots = Object.values(required).reduce((a, b) => a + b, 0);
+
+    const available = NURSES.filter(n => !(constraints[n.id] || []).includes(day.date));
+    if (available.length < totalSlots) return null;
+
+    const isWeekend = (day.dow === 0 || day.dow === 6);
+
+    // 為每位可用護理師打分
+    const scored = available.map(n => {
+      const s = stats[n.id];
+      const wasWorking = s.lastDay === day.date - 1;
+      const wasResting = s.lastDay > 0 && s.lastDay < day.date - 1;
+      const restGap = wasResting ? (day.date - 1 - s.lastDay) : 0;
+      // 連上 4 天後不要再排（避免 5+ 連上）
+      const overworkPenalty = wasWorking && s.streak >= 4 ? 500 : 0;
+      // 連上 1-3 天：鼓勵延伸成 2-4 天區塊
+      const continuityBonus = wasWorking && s.streak < 4 ? -4 : 0;
+      // 鼓勵延長休假成連假：剛休 1-2 天的人不要馬上叫回，鼓勵延伸至 3+ 天
+      let restExtendPenalty = 0;
+      if (restGap === 1) restExtendPenalty = 10;        // 1 天休 → 強烈避免叫回（會變單天休）
+      else if (restGap === 2) restExtendPenalty = 6;    // 2 天休 → 仍鼓勵延伸至 3 天連假
+      else if (restGap === 3) restExtendPenalty = 2;    // 3 天連假已達成，允許叫回
+      // 7 日內至少休 2 天：若過去 6 天已上滿 5 天，今天若再上 = 6/7，違反規則
+      const recentWork = recentWorkCount(n.id, day.date);
+      const sevenDayPenalty = recentWork >= 5 ? 400 : (recentWork === 4 ? 30 : 0);
+      // 週六日班平均化：週末偏好挑週末上班次數較少者
+      const weekendBalance = isWeekend ? s.weekendCount * 8 : 0;
+      // 工時分數扣掉需補負時數（讓需要補時數的人優先被排到）+ 整局偏好擾動
+      const hoursScore = s.hours - (carryForwardHours[n.id] || 0) + personalPerturbation[n.id];
+      const jitter = rng() * 12;  // 加大抖動讓結果有更多隨機性
+      return {
+        nurse: n,
+        score: hoursScore + continuityBonus + overworkPenalty + restExtendPenalty
+             + sevenDayPenalty + weekendBalance + jitter
+      };
+    });
+
+    scored.sort((a, b) => a.score - b.score);
+    const chosen = scored.slice(0, totalSlots).map(x => x.nurse);
+
+    const dayAssign = {};
+
+    // 1. 醫美 (AESTH) 優先（黃苡甄不能排）
+    if (required.AESTH) {
+      const aestCands = chosen.filter(n => !n.noAesthetic);
+      if (aestCands.length === 0) return null;
+      aestCands.sort((a, b) => {
+        const diff = stats[a.id].aesthCount - stats[b.id].aesthCount;
+        if (diff !== 0) return diff;
+        return stats[a.id].hours - stats[b.id].hours;
+      });
+      dayAssign[aestCands[0].id] = 'AESTH';
+    }
+
+    // 2. 午晚診 (PMNT)：選擇 pmntCount 最少者，做次數平均化
+    if (required.PMNT) {
+      const pmntCands = chosen.filter(n => !dayAssign[n.id]);
+      pmntCands.sort((a, b) => {
+        const diff = stats[a.id].pmntCount - stats[b.id].pmntCount;
+        if (diff !== 0) return diff;
+        return stats[a.id].hours - stats[b.id].hours;
+      });
+      for (let i = 0; i < required.PMNT; i++) {
+        dayAssign[pmntCands[i].id] = 'PMNT';
+      }
+    }
+
+    // 3. 剩餘班次：FULL 或 MORN（同一天只會有一種）
+    const remaining = chosen.filter(n => !dayAssign[n.id]);
+    const shiftType = required.FULL ? 'FULL' : 'MORN';
+    remaining.forEach(n => {
+      dayAssign[n.id] = shiftType;
+    });
+
+    // 更新狀態
+    schedule[day.date] = dayAssign;
+    NURSES.forEach(n => {
+      const isWorking = !!dayAssign[n.id];
+      stats[n.id].workHistory.push(isWorking);
+      if (isWorking) {
+        const shift = dayAssign[n.id];
+        stats[n.id].hours += SHIFT_INFO[shift].hours;
+        stats[n.id].days++;
+        stats[n.id].streak = stats[n.id].lastDay === day.date - 1 ? stats[n.id].streak + 1 : 1;
+        stats[n.id].lastDay = day.date;
+        if (shift === 'AESTH') stats[n.id].aesthCount++;
+        if (shift === 'PMNT') stats[n.id].pmntCount++;
+        if (day.dow === 0 || day.dow === 6) stats[n.id].weekendCount++;
+      }
+    });
+  }
+
+  return { schedule, stats };
+}
+
+function scoreResult(result, target) {
+  const hours = NURSES.map(n => result.stats[n.id].hours);
+  const days = NURSES.map(n => result.stats[n.id].days);
+
+  // 計算每人與「個別應上工時」（含需補負時數）的差距
+  const individualTargets = NURSES.map(n => target + (carryForwardHours[n.id] || 0));
+  const deviations = NURSES.map((n, i) => Math.abs(result.stats[n.id].hours - individualTargets[i]));
+  const maxDeviation = Math.max(...deviations);
+  const totalDeviation = deviations.reduce((a, b) => a + b, 0);
+
+  // 工時變異
+  const hMean = hours.reduce((a, b) => a + b) / hours.length;
+  const hVar = hours.reduce((s, h) => s + (h - hMean) ** 2, 0) / hours.length;
+
+  // 出勤天數變異
+  const dMean = days.reduce((a, b) => a + b) / days.length;
+  const dVar = days.reduce((s, d) => s + (d - dMean) ** 2, 0) / days.length;
+
+  // 午晚診次數變異（5 人平均）
+  const pmntCounts = NURSES.map(n => result.stats[n.id].pmntCount || 0);
+  const pmntMean = pmntCounts.reduce((a, b) => a + b, 0) / pmntCounts.length;
+  const pmntVar = pmntCounts.reduce((s, c) => s + (c - pmntMean) ** 2, 0) / pmntCounts.length;
+
+  // 醫美診次數變異（僅 4 位可排者：排除黃苡甄）
+  const aesthEligible = NURSES.filter(n => !n.noAesthetic);
+  const aesthCounts = aesthEligible.map(n => result.stats[n.id].aesthCount || 0);
+  const aesthMean = aesthCounts.reduce((a, b) => a + b, 0) / aesthCounts.length;
+  const aesthVar = aesthCounts.reduce((s, c) => s + (c - aesthMean) ** 2, 0) / aesthCounts.length;
+
+  // 週六日班次數變異（5 人平均）
+  const weekendCounts = NURSES.map(n => result.stats[n.id].weekendCount || 0);
+  const weekendMean = weekendCounts.reduce((a, b) => a + b, 0) / weekendCounts.length;
+  const weekendVar = weekendCounts.reduce((s, c) => s + (c - weekendMean) ** 2, 0) / weekendCounts.length;
+
+  // 7 日內至少休 2 天規則檢核（檢視所有 7 天滑動視窗）
+  let sevenDayViolations = 0;
+  NURSES.forEach(n => {
+    const hist = result.stats[n.id].workHistory;
+    for (let i = 0; i + 7 <= hist.length; i++) {
+      const window = hist.slice(i, i + 7);
+      const workDays = window.filter(x => x).length;
+      if (workDays > 5) sevenDayViolations += (workDays - 5);
+    }
+  });
+
+  // 連續上班/休假區塊評估（重點：最大化所有人的「連假」）
+  let blockBonus = 0;
+  let sandwichedSingles = 0;
+  const longRestDaysPerNurse = [];  // 每人「3 天以上連休」總天數
+  const longRestCountPerNurse = []; // 每人「3 天以上連休」次數
+  NURSES.forEach(n => {
+    const blocks = computeBlocks(result.schedule, n.id);
+    blocks.work.forEach(b => {
+      if (b === 1) blockBonus -= 5;
+      else if (b >= 2 && b <= 4) blockBonus += 5;
+      else if (b === 5) blockBonus -= 50;
+      else if (b >= 6) blockBonus -= 200;
+    });
+
+    let longRestDays = 0;
+    let longRestCount = 0;
+    blocks.rest.forEach(b => {
+      // 大幅獎勵長連休
+      if (b === 1) blockBonus -= 8;
+      else if (b === 2) blockBonus += 3;
+      else if (b === 3) blockBonus += 15;
+      else if (b === 4) blockBonus += 30;
+      else if (b >= 5) blockBonus += 50;
+      if (b >= 3) {
+        longRestDays += b;
+        longRestCount++;
+      }
+    });
+    longRestDaysPerNurse.push(longRestDays);
+    longRestCountPerNurse.push(longRestCount);
+
+    // 夾縫單班
+    const seq = blocks.sequence;
+    if (seq) {
+      for (let i = 1; i < seq.length - 1; i++) {
+        const cur = seq[i];
+        const prev = seq[i - 1];
+        const next = seq[i + 1];
+        if (cur.type === 'work' && cur.len === 1
+            && prev.type === 'rest' && prev.len >= 2
+            && next.type === 'rest' && next.len >= 2) {
+          sandwichedSingles++;
+        }
+      }
+    }
+  });
+
+  // 連假平均化：每人至少有一個 3+ 天連休（變異越小越好）
+  const restCountMean = longRestCountPerNurse.reduce((a,b) => a+b, 0) / longRestCountPerNurse.length;
+  const restCountVar = longRestCountPerNurse.reduce((s,c) => s + (c-restCountMean)**2, 0) / longRestCountPerNurse.length;
+  const minLongRest = Math.min(...longRestCountPerNurse);
+  // 額外獎勵：每人都有至少 1 次 3+ 天連休
+  const everyoneHasLongRestBonus = minLongRest >= 1 ? 100 : minLongRest * 50;
+  // 整體連假總天數獎勵
+  const totalLongRestDays = longRestDaysPerNurse.reduce((a,b) => a+b, 0);
+
+  // 分數：休假日平均 > 工時平均，最大化連假天數
+  return -totalDeviation * 3       // 工時接近應上工時
+       - maxDeviation * 2          // 最大個別偏離
+       - hVar * 20                 // 工時平均（重）
+       - dVar * 25                 // 休假日/出勤天數平均（更重）
+       - pmntVar * 15              // 午晚診次數平均
+       - aesthVar * 15             // 醫美診次數平均
+       - weekendVar * 15           // 週六日班次數平均
+       - sevenDayViolations * 100  // 7 日內至少休 2 天違規（極重）
+       - sandwichedSingles * 30    // 連休中卡 1 天班
+       - restCountVar * 20         // 連假次數平均（每人都有連假）
+       + everyoneHasLongRestBonus  // 每人至少 1 次連假的額外獎勵
+       + totalLongRestDays * 3     // 整體連假總天數
+       + blockBonus;
+}
+
+function computeBlocks(schedule, nurseId) {
+  const work = [];
+  const rest = [];
+  const sequence = []; // 完整序列 [{type:'work'|'rest', len:n}, ...]
+  let curWork = 0;
+  let curRest = 0;
+  currentDays.forEach(d => {
+    const isWorking = schedule[d.date] && schedule[d.date][nurseId];
+    if (isWorking) {
+      if (curRest > 0) {
+        rest.push(curRest);
+        sequence.push({ type: 'rest', len: curRest });
+        curRest = 0;
+      }
+      curWork++;
+    } else {
+      if (curWork > 0) {
+        work.push(curWork);
+        sequence.push({ type: 'work', len: curWork });
+        curWork = 0;
+      }
+      curRest++;
+    }
+  });
+  if (curWork > 0) { work.push(curWork); sequence.push({ type: 'work', len: curWork }); }
+  if (curRest > 0) { rest.push(curRest); sequence.push({ type: 'rest', len: curRest }); }
+  return { work, rest, sequence };
+}
+
+async function generateSchedule() {
+  const btn = document.getElementById('gen-btn');
+  const progress = document.getElementById('progress');
+  btn.disabled = true;
+
+  // 儲存當前版本到「生成歷史」（按「上一版」可回來）
+  if (currentResult) {
+    generationHistory.push({
+      schedule: JSON.parse(JSON.stringify(currentResult.schedule)),
+      original: originalSchedule ? JSON.parse(JSON.stringify(originalSchedule)) : null
+    });
+    if (generationHistory.length > 10) generationHistory.shift();
+  }
+  // 新生成會清空「下一版」堆疊（時間線分支）
+  generationFuture = [];
+
+  // 用當前時間 + 隨機數作為種子基底，確保每次「開始排班」都產生不同結果
+  const seedBase = Date.now() + Math.floor(Math.random() * 1000000);
+
+  let best = null;
+  let bestScore = -Infinity;
+  const totalAttempts = 3000;
+  const batchSize = 100;
+
+  for (let i = 0; i < totalAttempts; i += batchSize) {
+    for (let j = 0; j < batchSize; j++) {
+      const result = tryAssign(currentDays, constraints, seedBase + (i + j) * 7919);
+      if (result) {
+        const score = scoreResult(result, monthlyTargetHours);
+        if (score > bestScore) {
+          bestScore = score;
+          best = result;
+        }
+      }
+    }
+    progress.textContent = `已嘗試 ${i + batchSize}/${totalAttempts} 種組合...`;
+    await new Promise(r => setTimeout(r, 1));
+  }
+
+  btn.disabled = false;
+  progress.textContent = '';
+
+  if (!best) {
+    showFailureDiagnosis();
+    return;
+  }
+
+  currentResult = best;
+  // 儲存原始版本供重置使用
+  originalSchedule = JSON.parse(JSON.stringify(currentResult.schedule));
+  editHistory = [];
+  updateHistoryInfo();
+  displayResult(currentResult);
+}
+
+// ========== 排班失敗診斷 ==========
+function showFailureDiagnosis() {
+  const issues = [];
+  currentDays.forEach(d => {
+    const required = d.requirements;
+    const totalSlots = Object.values(required).reduce((a, b) => a + b, 0);
+    const available = NURSES.filter(n => !(constraints[n.id] || []).includes(d.date));
+    const blocked = NURSES.filter(n => (constraints[n.id] || []).includes(d.date));
+
+    // 問題 1：可用人力不足
+    if (available.length < totalSlots) {
+      issues.push({
+        date: d.date,
+        dow: DOW_NAMES[d.dow],
+        kind: '人力不足',
+        detail: `當日需要 ${totalSlots} 人，但僅 ${available.length} 人可排（${blocked.map(n=>n.name).join('、')} 已設為不可排班）`,
+        suggest: `建議解除 ${blocked.slice(0, totalSlots - available.length).map(n => `「${n.name}」`).join('或')} 在 ${d.date} 日的限制，或調整當日班別需求`
+      });
+    }
+
+    // 問題 2：需要醫美但所有可排者都被限制
+    if (required.AESTH) {
+      const aestAvail = available.filter(n => !n.noAesthetic);
+      if (aestAvail.length === 0) {
+        const aestEligible = NURSES.filter(n => !n.noAesthetic);
+        const aestBlocked = aestEligible.filter(n => (constraints[n.id] || []).includes(d.date));
+        issues.push({
+          date: d.date,
+          dow: DOW_NAMES[d.dow],
+          kind: '醫美無人可排',
+          detail: `當日需要醫美 2F 班，但 4 位可排醫美護理師（${aestEligible.map(n=>n.name).join('、')}）全部被限制當天不可排班`,
+          suggest: `建議至少解除其中 1 位（${aestBlocked.map(n=>`「${n.name}」`).join('、')}）在 ${d.date} 日的限制`
+        });
+      }
+    }
+  });
+
+  let msg = '❌ 無法產生符合限制的排班表！\n\n';
+  if (issues.length === 0) {
+    msg += '系統嘗試 3000 種組合都未找到可行解，可能是限制條件交互影響。\n\n建議：\n1. 減少標記為「不可排班」的日期\n2. 確認沒有某幾天大部分人都被限制';
+  } else {
+    msg += `發現 ${issues.length} 個明確問題：\n\n`;
+    issues.forEach((iss, i) => {
+      msg += `${i+1}. 【${iss.date} 日（${iss.dow}）｜${iss.kind}】\n`;
+      msg += `   問題：${iss.detail}\n`;
+      msg += `   建議：${iss.suggest}\n\n`;
+    });
+  }
+  alert(msg);
+}
+
+// ========== 復原 / 重置 ==========
+function updateHistoryInfo() {
+  const info = document.getElementById('history-info');
+  if (!info) return;
+  if (editHistory.length === 0) {
+    info.textContent = '尚未修改';
+    info.style.color = '#718096';
+  } else {
+    info.textContent = `已修改 ${editHistory.length} 次`;
+    info.style.color = '#ed8936';
+  }
+}
+
+function pushHistory() {
+  if (!currentResult) return;
+  editHistory.push(JSON.parse(JSON.stringify(currentResult.schedule)));
+  if (editHistory.length > 50) editHistory.shift();  // 最多保留 50 步
+  updateHistoryInfo();
+}
+
+function undoLastChange() {
+  if (editHistory.length === 0) {
+    alert('沒有可復原的修改');
+    return;
+  }
+  currentResult.schedule = editHistory.pop();
+  recomputeStats();
+  updateHistoryInfo();
+  displayResult(currentResult);
+}
+
+function resetAllChanges() {
+  if (!originalSchedule) {
+    alert('尚未產生過班表');
+    return;
+  }
+  if (editHistory.length === 0) {
+    alert('沒有任何修改可重置');
+    return;
+  }
+  if (!confirm(`確定要將所有 ${editHistory.length} 次修改還原成系統最初產生的版本？`)) return;
+  currentResult.schedule = JSON.parse(JSON.stringify(originalSchedule));
+  editHistory = [];
+  recomputeStats();
+  updateHistoryInfo();
+  displayResult(currentResult);
+}
+
+// 切換到「前一版」排班結果
+function goToPreviousGeneration() {
+  if (generationHistory.length === 0) {
+    alert('沒有更早的排班版本可回去\n\n（每按一次「開始排班」會儲存當前版本，最多保留 10 版）');
+    return;
+  }
+  // 把當前版本推進「下一版」堆疊
+  generationFuture.push({
+    schedule: JSON.parse(JSON.stringify(currentResult.schedule)),
+    original: originalSchedule ? JSON.parse(JSON.stringify(originalSchedule)) : null
+  });
+  if (generationFuture.length > 10) generationFuture.shift();
+  const prev = generationHistory.pop();
+  currentResult.schedule = prev.schedule;
+  originalSchedule = prev.original;
+  editHistory = [];
+  recomputeStats();
+  updateHistoryInfo();
+  displayResult(currentResult);
+}
+
+// 切換到「下一版」排班結果（從上一版回來後可以再前進）
+function goToNextGeneration() {
+  if (generationFuture.length === 0) {
+    alert('沒有更新的排班版本可前進\n\n（先按「⏪ 上一版排班」後才能往回前進）');
+    return;
+  }
+  // 把當前版本推進「上一版」堆疊
+  generationHistory.push({
+    schedule: JSON.parse(JSON.stringify(currentResult.schedule)),
+    original: originalSchedule ? JSON.parse(JSON.stringify(originalSchedule)) : null
+  });
+  if (generationHistory.length > 10) generationHistory.shift();
+  const next = generationFuture.pop();
+  currentResult.schedule = next.schedule;
+  originalSchedule = next.original;
+  editHistory = [];
+  recomputeStats();
+  updateHistoryInfo();
+  displayResult(currentResult);
+}
+
+// ========== 手動修改班別 ==========
+function openShiftEditor(cell) {
+  // 避免重複開啟
+  if (cell.querySelector('select')) return;
+
+  const day = +cell.dataset.day;
+  const nurseId = cell.dataset.nurse;
+  const nurse = NURSES.find(n => n.id === nurseId);
+  const currentShift = currentResult.schedule[day]?.[nurseId] || '';
+
+  const options = [
+    { value: '', label: '─ 休假' },
+    { value: 'MORN', label: 'A 早診' },
+    { value: 'FULL', label: 'A+B+C 早午晚診' },
+    { value: 'PMNT', label: 'B+C 午晚診' },
+    { value: 'AESTH', label: '2F 醫美診' },
+  ];
+
+  const select = document.createElement('select');
+  select.className = 'shift-select';
+  options.forEach(opt => {
+    // 黃苡甄不能排醫美
+    if (opt.value === 'AESTH' && nurse.noAesthetic) return;
+    const option = document.createElement('option');
+    option.value = opt.value;
+    option.textContent = opt.label;
+    if (opt.value === currentShift) option.selected = true;
+    select.appendChild(option);
+  });
+
+  select.onchange = () => {
+    const newShift = select.value;
+    const oldShift = currentResult.schedule[day]?.[nurseId] || '';
+    if (newShift === oldShift) {
+      displayResult(currentResult);
+      return;
+    }
+    // 修改前先儲存當前狀態到歷史
+    pushHistory();
+    if (newShift === '') {
+      if (currentResult.schedule[day]) delete currentResult.schedule[day][nurseId];
+    } else {
+      if (!currentResult.schedule[day]) currentResult.schedule[day] = {};
+      currentResult.schedule[day][nurseId] = newShift;
+    }
+    recomputeStats();
+    displayResult(currentResult);
+  };
+
+  select.onblur = () => {
+    displayResult(currentResult);
+  };
+
+  // 阻止觸發 cell 的 click
+  select.onclick = e => e.stopPropagation();
+
+  cell.innerHTML = '';
+  cell.appendChild(select);
+  select.focus();
+}
+
+// 重新計算所有統計（手動修改後呼叫）
+function recomputeStats() {
+  const stats = {};
+  NURSES.forEach(n => {
+    stats[n.id] = {
+      hours: 0, days: 0, lastDay: -10, streak: 0,
+      aesthCount: 0, pmntCount: 0, weekendCount: 0,
+      workHistory: []
+    };
+  });
+
+  currentDays.forEach(d => {
+    NURSES.forEach(n => {
+      const shift = currentResult.schedule[d.date]?.[n.id];
+      const isWorking = !!shift;
+      stats[n.id].workHistory.push(isWorking);
+      if (isWorking) {
+        stats[n.id].hours += SHIFT_INFO[shift].hours;
+        stats[n.id].days++;
+        stats[n.id].streak = stats[n.id].lastDay === d.date - 1 ? stats[n.id].streak + 1 : 1;
+        stats[n.id].lastDay = d.date;
+        if (shift === 'AESTH') stats[n.id].aesthCount++;
+        if (shift === 'PMNT') stats[n.id].pmntCount++;
+        if (d.dow === 0 || d.dow === 6) stats[n.id].weekendCount++;
+      }
+    });
+  });
+
+  currentResult.stats = stats;
+}
+
+function displayResult(result) {
+  // 1. 顯示排班表（可手動修改）
+  let html = '<div style="overflow-x:auto;"><table class="schedule-table"><thead><tr><th>日期</th><th>星期</th>';
+  NURSES.forEach(n => {
+    html += `<th>${n.name}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  currentDays.forEach(d => {
+    let cls = '';
+    if (d.isHoliday) cls = 'holiday';
+    else if (d.dow === 6) cls = 'saturday';
+    else if (d.dow === 0) cls = 'sunday';
+    html += `<tr class="${cls}"><td>${d.date}${d.isHoliday ? `<br><span class="holiday-tag">假</span>` : ''}</td><td>${DOW_NAMES[d.dow]}</td>`;
+    NURSES.forEach(n => {
+      const shift = result.schedule[d.date]?.[n.id];
+      const isUnavailable = (constraints[n.id] || []).includes(d.date);
+      let cellClass, cellText;
+      if (shift) {
+        cellClass = SHIFT_INFO[shift].css;
+        cellText = SHIFT_INFO[shift].display;
+      } else if (isUnavailable) {
+        cellClass = 'shift-unavailable';
+        cellText = 'OFF';
+      } else {
+        cellClass = 'shift-off';
+        cellText = '─';
+      }
+      html += `<td class="${cellClass} editable-cell" data-day="${d.date}" data-nurse="${n.id}" onclick="openShiftEditor(this)" title="點擊修改班別">${cellText}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '<p class="hint" style="margin-top:8px;">💡 點擊任一班別格子可手動修改，工時統計會即時更新。</p>';
+  document.getElementById('schedule').innerHTML = html;
+
+  // 2. 顯示工時統計 + 正/負時數
+  const hasCarryForward = NURSES.some(n => (carryForwardHours[n.id] || 0) > 0);
+  let sumHtml = `<div class="target-info">
+    <strong>本月基本應上工時：${monthlyTargetHours} 小時/人（工作日 ${monthlyWorkingDays} 天 × 8 小時）</strong>
+    ${hasCarryForward ? '<br><span style="color:#c53030;">部分護理師另有「需補負時數」加進個人目標（見下表「需補負時數」欄）</span>' : ''}
+  </div>`;
+
+  sumHtml += '<table class="summary-table"><thead><tr><th>護理師</th><th>早診 A</th><th>早午晚 A+B+C</th><th>午晚 B+C</th><th>醫美 2F</th><th>週末班</th><th>出勤</th><th>休假</th><th>實際工時</th><th>基本應上</th><th>需補負時數</th><th>個人總目標</th><th>正/負時數</th><th>7日休2檢核</th></tr></thead><tbody>';
+  const totalDays = currentDays.length;
+  NURSES.forEach(n => {
+    const s = result.stats[n.id];
+    const counts = { MORN: 0, FULL: 0, PMNT: 0, AESTH: 0 };
+    Object.values(result.schedule).forEach(day => {
+      if (day[n.id]) counts[day[n.id]]++;
+    });
+    const carryFwd = carryForwardHours[n.id] || 0;
+    const personalTarget = monthlyTargetHours + carryFwd;
+    const diff = s.hours - personalTarget;
+    let diffClass = 'zero-hours';
+    let diffText = `±0 hr`;
+    if (diff > 0) {
+      diffClass = 'positive-hours';
+      diffText = `+${diff} hr（正）`;
+    } else if (diff < 0) {
+      diffClass = 'negative-hours';
+      diffText = `${diff} hr（負）`;
+    }
+    // 7 日內至少休 2 天檢核
+    let violations = 0;
+    const hist = s.workHistory;
+    for (let i = 0; i + 7 <= hist.length; i++) {
+      const workDays = hist.slice(i, i + 7).filter(x => x).length;
+      if (workDays > 5) violations++;
+    }
+    const sevenDayStatus = violations === 0
+      ? '<span class="zero-hours">✅ 通過</span>'
+      : `<span class="negative-hours">⚠️ ${violations} 次違規</span>`;
+    sumHtml += `<tr>
+      <td><strong>${n.name}</strong>${n.noAesthetic ? ' <small style="color:#999">(無醫美)</small>' : ''}</td>
+      <td>${counts.MORN}</td>
+      <td>${counts.FULL}</td>
+      <td>${counts.PMNT}</td>
+      <td>${counts.AESTH}</td>
+      <td>${s.weekendCount}</td>
+      <td>${s.days} 天</td>
+      <td>${totalDays - s.days} 天</td>
+      <td><strong>${s.hours} hr</strong></td>
+      <td>${monthlyTargetHours} hr</td>
+      <td>${carryFwd > 0 ? `<span style="color:#c53030;font-weight:600;">+${carryFwd} hr</span>` : '0 hr'}</td>
+      <td><strong>${personalTarget} hr</strong></td>
+      <td class="${diffClass}">${diffText}</td>
+      <td>${sevenDayStatus}</td>
+    </tr>`;
+  });
+  const totalHours = NURSES.reduce((sum, n) => sum + result.stats[n.id].hours, 0);
+  const totalWorkDays = NURSES.reduce((sum, n) => sum + result.stats[n.id].days, 0);
+  const totalWeekend = NURSES.reduce((sum, n) => sum + result.stats[n.id].weekendCount, 0);
+  const totalCarryFwd = NURSES.reduce((sum, n) => sum + (carryForwardHours[n.id] || 0), 0);
+  const totalPersonalTarget = monthlyTargetHours * 5 + totalCarryFwd;
+  // 計算各班別總次數
+  const totalCounts = { MORN: 0, FULL: 0, PMNT: 0, AESTH: 0 };
+  Object.values(result.schedule).forEach(day => {
+    Object.values(day).forEach(shift => { if (totalCounts[shift] !== undefined) totalCounts[shift]++; });
+  });
+  sumHtml += `<tr style="background:#edf2f7;font-weight:600;">
+    <td>合計</td>
+    <td>${totalCounts.MORN}</td>
+    <td>${totalCounts.FULL}</td>
+    <td>${totalCounts.PMNT}</td>
+    <td>${totalCounts.AESTH}</td>
+    <td>${totalWeekend}</td>
+    <td>${totalWorkDays}</td>
+    <td>${totalDays * 5 - totalWorkDays}</td>
+    <td>${totalHours} hr</td>
+    <td>${monthlyTargetHours * 5} hr</td>
+    <td>${totalCarryFwd} hr</td>
+    <td>${totalPersonalTarget} hr</td>
+    <td>平均 ${((totalHours - totalPersonalTarget) / 5).toFixed(1)} hr/人</td>
+    <td></td>
+  </tr>`;
+  sumHtml += '</tbody></table>';
+
+  sumHtml += `<div class="info-row" style="margin-top:12px;">
+    <strong>💡 工時結算說明（依協議第 3.3 條）：</strong><br>
+    • <span class="positive-hours">正時數</span>：實際工時 > 應上工時，差額累積至「次次月」內由乙方調配補休抵扣<br>
+    • <span class="negative-hours">負時數</span>：實際工時 < 應上工時，由乙方於「次次月」內補足<br>
+    • 晚診/醫美診逾 21:20 部分依分鐘累計併入當月正時數
+  </div>`;
+
+  document.getElementById('summary').innerHTML = sumHtml;
+
+  // 3. 顯示連續上班/休假區塊
+  let blockHtml = '<table class="summary-table"><thead><tr><th>護理師</th><th>連續上班區塊（天數）</th><th>連續休假區塊（天數）</th></tr></thead><tbody>';
+  NURSES.forEach(n => {
+    const blocks = computeBlocks(result.schedule, n.id);
+    const workBlocks = blocks.work.map(b => `<span class="day-block shift-all">${b}</span>`).join('');
+    const restBlocks = blocks.rest.map(b => `<span class="day-block" style="background:#cbd5e0;color:#2d3748;">${b}</span>`).join('');
+    blockHtml += `<tr><td><strong>${n.name}</strong></td><td>${workBlocks}</td><td>${restBlocks}</td></tr>`;
+  });
+  blockHtml += '</tbody></table>';
+  document.getElementById('blocks').innerHTML = blockHtml;
+
+  document.getElementById('result-card').style.display = 'block';
+  document.getElementById('result-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ========== 匯出班表為圖片 ==========
+function exportAsImage() {
+  const scheduleEl = document.getElementById('schedule');
+  if (!scheduleEl || !scheduleEl.firstChild) {
+    alert('請先產生班表');
+    return;
+  }
+
+  // 建立一個 wrapper 包含標題和班表，讓圖片更完整
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'padding: 24px; background: white; font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;';
+
+  const title = document.createElement('div');
+  title.innerHTML = `
+    <h2 style="text-align:center; color:#2c5282; margin-bottom:8px;">
+      🏥 護理師月排班表 ${currentYear}年${currentMonth}月
+    </h2>
+    <div style="text-align:center; color:#4a5568; margin-bottom:8px; font-size:13px;">
+      應上工時 ${monthlyTargetHours} hr/人（工作日 ${monthlyWorkingDays} 天 × 8 小時）
+    </div>
+    <div style="font-size:12px; color:#718096; margin-bottom:14px; text-align:center;">
+      A=早診(4hr) ｜ A+B+C=早午晚診(10hr) ｜ B+C=午晚診(6hr) ｜ 美=醫美診(9hr) ｜ OFF=指定休假
+    </div>
+  `;
+  wrapper.appendChild(title);
+
+  const cloned = scheduleEl.cloneNode(true);
+  // 移除「點擊修改」提示文字（匯出版不需要）
+  cloned.querySelectorAll('.hint').forEach(el => el.remove());
+  wrapper.appendChild(cloned);
+
+  document.body.appendChild(wrapper);
+  wrapper.style.position = 'absolute';
+  wrapper.style.left = '-10000px';
+  wrapper.style.top = '0';
+
+  html2canvas(wrapper, {
+    backgroundColor: '#ffffff',
+    scale: 2,
+    logging: false,
+    useCORS: true
+  }).then(canvas => {
+    const link = document.createElement('a');
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    link.download = `護理師排班表_${currentYear}-${String(currentMonth).padStart(2,'0')}_${dateStr}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    document.body.removeChild(wrapper);
+  }).catch(err => {
+    console.error(err);
+    alert('圖片匯出失敗：' + err.message);
+    if (wrapper.parentNode) document.body.removeChild(wrapper);
+  });
+}
+
+// 啟動時自動載入預設月份
+window.addEventListener('DOMContentLoaded', loadCalendar);
+</script>
+</body>
+</html>
