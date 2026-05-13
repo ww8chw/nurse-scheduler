@@ -127,6 +127,33 @@
     min-width: 110px;
   }
   .constraint-grid td.name-cell:hover { background: inherit; }
+  .aesth-grid td.aesth-day {
+    background: #fdebf4;
+    color: #4d1a3d;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .aesth-grid td.aesth-day:hover {
+    background: #f5d6e8;
+  }
+  .aesth-grid td.aesth-assigned {
+    background: #d63384 !important;
+    color: white;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .aesth-grid td.aesth-other-taken {
+    background: #e0e0e0 !important;
+    color: #999;
+    cursor: not-allowed;
+    font-size: 10px;
+  }
+  .aesth-grid td.non-aesth-day {
+    background: #f7fafc;
+    color: #cbd5e0;
+    cursor: not-allowed;
+    font-size: 10px;
+  }
   .legend {
     display: flex;
     gap: 12px;
@@ -222,6 +249,17 @@
     <div class="constraint-grid" id="constraints-grid"></div>
   </div>
 
+  <div class="card" id="pre-assign-aesth-card" style="display:none;">
+    <h2>步驟 2.3：預先排定醫美班（選填）</h2>
+    <p class="hint">需要醫美班的日期已用 <span style="background:#fdebf4;padding:1px 6px;border-radius:3px;color:#4d1a3d;">粉色底</span> 標示。<br>
+    點擊格子可指定該護理師當天上醫美 2F 班，再次點擊取消。<br>
+    <span style="background:#d63384;color:white;padding:1px 6px;border-radius:3px;">深粉色 = 已預排</span> ｜
+    <span style="background:#e0e0e0;color:#999;padding:1px 6px;border-radius:3px;">灰色 = 該日已由他人預排</span> ｜
+    <span style="background:#fdebf4;color:#4d1a3d;padding:1px 6px;border-radius:3px;">粉色 = 待系統排班</span>
+    </p>
+    <div class="aesth-grid constraint-grid" id="aesth-pre-assign-grid" style="margin-top:10px;"></div>
+  </div>
+
   <div class="card" id="carry-forward-card" style="display:none;">
     <h2>步驟 2.5：個別護理師需補的負時數（前月累積）</h2>
     <p class="hint">依協議第 3.3 條，前月累積之負時數需於「次次月」補足。<br>
@@ -234,7 +272,7 @@
     <button onclick="generateSchedule()" id="gen-btn">🎲 開始排班</button>
     <span class="progress-info" id="progress"></span>
     <p class="hint">系統會嘗試 3000 種排班組合，挑選符合以下條件的最佳方案：<br>
-    ✓ 休假日平均 ✓ 工時最接近應上工時 ✓ <strong>連上 2-4 天</strong> ✓ <strong>午晚診/醫美診/週六日班平均</strong><br>
+    ✓ 休假日平均 ✓ 工時最接近應上工時 ✓ <strong>連上 2-4 天</strong> ✓ <strong>午晚診/週六日班平均</strong><br>
     ✓ <strong>每 7 天內至少休 2 天</strong> ✓ 避免連休中卡 1 天班<br>
     🌟 <strong>最大化「連假」（3+ 天連休）— 確保每人都有至少 1 次 3+ 天連休</strong></p>
   </div>
@@ -369,6 +407,7 @@ let editHistory = [];  // 手動修改歷史堆疊（復原用）
 let generationHistory = [];  // 「開始排班」歷史版本（往前）
 let generationFuture = [];   // 「開始排班」未來版本（往後）
 let carryForwardHours = {};  // 每位護理師累積需補的負時數（依協議第 3.3 條）
+let preAssignedAesth = {};  // 預先指定醫美 2F 班 { day: nurseId }
 
 function calculateMonthlyTarget(year, month) {
   const lastDay = new Date(year, month, 0).getDate();
@@ -432,12 +471,72 @@ function loadCalendar() {
     ${holidayList ? '<br>本月國定假日：' + holidayList : ''}
   `;
 
+  preAssignedAesth = {};  // 切換月份時清空預排
   renderConstraintsGrid();
+  renderPreAssignAesthGrid();
   renderCarryForwardInputs();
   document.getElementById('constraints-card').style.display = 'block';
+  document.getElementById('pre-assign-aesth-card').style.display = 'block';
   document.getElementById('carry-forward-card').style.display = 'block';
   document.getElementById('generate-card').style.display = 'block';
   document.getElementById('result-card').style.display = 'none';
+}
+
+function renderPreAssignAesthGrid() {
+  const container = document.getElementById('aesth-pre-assign-grid');
+  const eligibleNurses = NURSES.filter(n => !n.noAesthetic);
+
+  let html = '<table><thead><tr><th>護理師</th>';
+  currentDays.forEach(d => {
+    let cls = '';
+    if (d.isHoliday) cls = 'holiday';
+    else if (d.dow === 6) cls = 'saturday';
+    else if (d.dow === 0) cls = 'sunday';
+    html += `<th class="${cls}">${d.date}<br><small>${DOW_NAMES[d.dow]}</small>${d.isHoliday ? '<br><span class="holiday-tag">假</span>' : ''}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  eligibleNurses.forEach(n => {
+    html += `<tr><td class="name-cell">${n.name}</td>`;
+    currentDays.forEach(d => {
+      const isAesthDay = d.requirements && d.requirements.AESTH;
+      if (!isAesthDay) {
+        html += `<td class="non-aesth-day">─</td>`;
+      } else {
+        const assignedTo = preAssignedAesth[d.date];
+        let cellClass = 'aesth-day';
+        let cellText = '';
+        if (assignedTo === n.id) {
+          cellClass = 'aesth-assigned';
+          cellText = '2F';
+        } else if (assignedTo) {
+          cellClass = 'aesth-other-taken';
+          cellText = '已指派';
+        }
+        html += `<td class="${cellClass}" data-nurse="${n.id}" data-day="${d.date}" onclick="togglePreAssignAesth(this)">${cellText}</td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function togglePreAssignAesth(cell) {
+  const nurseId = cell.dataset.nurse;
+  const day = +cell.dataset.day;
+  const currentAssign = preAssignedAesth[day];
+  if (currentAssign === nurseId) {
+    // 取消當前指派
+    delete preAssignedAesth[day];
+  } else if (currentAssign) {
+    // 已被他人指派，無法點選（已在 CSS 中提示），但保險起見不做事
+    return;
+  } else {
+    // 指派給此護理師
+    preAssignedAesth[day] = nurseId;
+  }
+  renderPreAssignAesthGrid();
 }
 
 function renderCarryForwardInputs() {
@@ -552,6 +651,15 @@ function tryAssign(days, constraints, seed) {
     const available = NURSES.filter(n => !(constraints[n.id] || []).includes(day.date));
     if (available.length < totalSlots) return null;
 
+    // 處理「預先排定醫美班」：強制該護理師被選中
+    let forcedAesth = null;
+    if (required.AESTH && preAssignedAesth[day.date]) {
+      const preId = preAssignedAesth[day.date];
+      const preNurse = available.find(n => n.id === preId);
+      if (!preNurse || preNurse.noAesthetic) return null;  // 無法滿足預排
+      forcedAesth = preNurse;
+    }
+
     const isWeekend = (day.dow === 0 || day.dow === 6);
 
     // 為每位可用護理師打分
@@ -585,20 +693,27 @@ function tryAssign(days, constraints, seed) {
     });
 
     scored.sort((a, b) => a.score - b.score);
-    const chosen = scored.slice(0, totalSlots).map(x => x.nurse);
+    let chosen = scored.slice(0, totalSlots).map(x => x.nurse);
+
+    // 若有預排醫美但該護理師沒被選到，強制加入並擠掉分數最高（最不該選）的人
+    if (forcedAesth && !chosen.find(n => n.id === forcedAesth.id)) {
+      chosen.pop();  // 移除最後一個（分數最高的）
+      chosen.push(forcedAesth);
+    }
 
     const dayAssign = {};
 
-    // 1. 醫美 (AESTH) 優先（黃苡甄不能排）
+    // 1. 醫美 (AESTH)：優先指派預排者；否則照常規挑 aesthCount 最少者
     if (required.AESTH) {
-      const aestCands = chosen.filter(n => !n.noAesthetic);
-      if (aestCands.length === 0) return null;
-      aestCands.sort((a, b) => {
-        const diff = stats[a.id].aesthCount - stats[b.id].aesthCount;
-        if (diff !== 0) return diff;
-        return stats[a.id].hours - stats[b.id].hours;
-      });
-      dayAssign[aestCands[0].id] = 'AESTH';
+      if (forcedAesth) {
+        dayAssign[forcedAesth.id] = 'AESTH';
+      } else {
+        const aestCands = chosen.filter(n => !n.noAesthetic);
+        if (aestCands.length === 0) return null;
+        // 醫美指派改為以工時最少者優先（不再強制平均次數）
+        aestCands.sort((a, b) => stats[a.id].hours - stats[b.id].hours);
+        dayAssign[aestCands[0].id] = 'AESTH';
+      }
     }
 
     // 2. 午晚診 (PMNT)：選擇 pmntCount 最少者，做次數平均化
@@ -665,11 +780,7 @@ function scoreResult(result, target) {
   const pmntMean = pmntCounts.reduce((a, b) => a + b, 0) / pmntCounts.length;
   const pmntVar = pmntCounts.reduce((s, c) => s + (c - pmntMean) ** 2, 0) / pmntCounts.length;
 
-  // 醫美診次數變異（僅 4 位可排者：排除黃苡甄）
-  const aesthEligible = NURSES.filter(n => !n.noAesthetic);
-  const aesthCounts = aesthEligible.map(n => result.stats[n.id].aesthCount || 0);
-  const aesthMean = aesthCounts.reduce((a, b) => a + b, 0) / aesthCounts.length;
-  const aesthVar = aesthCounts.reduce((s, c) => s + (c - aesthMean) ** 2, 0) / aesthCounts.length;
+  // （已移除）醫美診次數變異規則：依使用者要求，不再強制醫美次數平均
 
   // 週六日班次數變異（5 人平均）
   const weekendCounts = NURSES.map(n => result.stats[n.id].weekendCount || 0);
@@ -749,7 +860,6 @@ function scoreResult(result, target) {
        - hVar * 20                 // 工時平均（重）
        - dVar * 25                 // 休假日/出勤天數平均（更重）
        - pmntVar * 15              // 午晚診次數平均
-       - aesthVar * 15             // 醫美診次數平均
        - weekendVar * 15           // 週六日班次數平均
        - sevenDayViolations * 100  // 7 日內至少休 2 天違規（極重）
        - sandwichedSingles * 30    // 連休中卡 1 天班
@@ -876,6 +986,21 @@ function showFailureDiagnosis() {
           detail: `當日需要醫美 2F 班，但 4 位可排醫美護理師（${aestEligible.map(n=>n.name).join('、')}）全部被限制當天不可排班`,
           suggest: `建議至少解除其中 1 位（${aestBlocked.map(n=>`「${n.name}」`).join('、')}）在 ${d.date} 日的限制`
         });
+      }
+
+      // 問題 2.5：預排的醫美護理師被限制當天不可排班
+      if (preAssignedAesth[d.date]) {
+        const preId = preAssignedAesth[d.date];
+        const preNurse = NURSES.find(n => n.id === preId);
+        if (preNurse && (constraints[preId] || []).includes(d.date)) {
+          issues.push({
+            date: d.date,
+            dow: DOW_NAMES[d.dow],
+            kind: '預排醫美衝突',
+            detail: `已預排「${preNurse.name}」在 ${d.date} 日上醫美 2F 班，但同時又設為當日不可排班`,
+            suggest: `請解除「${preNurse.name}」當日不可排班的限制，或改為其他護理師預排醫美`
+          });
+        }
       }
     }
   });
