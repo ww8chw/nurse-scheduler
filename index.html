@@ -103,6 +103,52 @@
     background: white;
     font-weight: 600;
   }
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .modal-box {
+    background: white;
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 700px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  }
+  .modal-box h3 {
+    color: #c53030;
+    margin-bottom: 12px;
+  }
+  .issue-item {
+    background: #fff5f5;
+    border-left: 4px solid #fc8181;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .issue-item label {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    cursor: pointer;
+  }
+  .issue-item input[type="checkbox"] {
+    margin-top: 3px;
+    transform: scale(1.2);
+  }
+  .modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
   .constraint-grid {
     overflow-x: auto;
     margin-top: 10px;
@@ -228,6 +274,20 @@
 <body>
 <div class="container">
   <h1>🏥 護理師月排班系統</h1>
+
+  <!-- 排班失敗 Modal -->
+  <div class="modal-overlay" id="failure-modal" style="display:none;">
+    <div class="modal-box">
+      <h3>❌ 無法產生排班表</h3>
+      <p style="margin-bottom:12px;">偵測到以下日期人力不足。<strong>勾選想要「減少 1 人需求」並重試的日期</strong>，或直接取消修正限制。</p>
+      <div id="failure-issues-list"></div>
+      <div id="failure-other-info" style="font-size:12px;color:#718096;margin-top:10px;"></div>
+      <div class="modal-buttons">
+        <button onclick="closeFailureModal()" style="background:#a0aec0;">取消</button>
+        <button onclick="retryWithRelaxation()" style="background:#38a169;">✅ 確認並重新排班</button>
+      </div>
+    </div>
+  </div>
 
   <div class="card">
     <h2>步驟 1：選擇月份</h2>
@@ -408,6 +468,7 @@ let generationHistory = [];  // 「開始排班」歷史版本（往前）
 let generationFuture = [];   // 「開始排班」未來版本（往後）
 let carryForwardHours = {};  // 每位護理師累積需補的負時數（依協議第 3.3 條）
 let preAssignedAesth = {};  // 預先指定醫美 2F 班 { day: nurseId }
+let relaxedDays = {};  // 放寬人力需求的日期 { day: 減少幾個人 }
 
 function calculateMonthlyTarget(year, month) {
   const lastDay = new Date(year, month, 0).getDate();
@@ -472,6 +533,7 @@ function loadCalendar() {
   `;
 
   preAssignedAesth = {};  // 切換月份時清空預排
+  relaxedDays = {};       // 切換月份時清空放寬設定
   renderConstraintsGrid();
   renderPreAssignAesthGrid();
   renderCarryForwardInputs();
@@ -645,7 +707,18 @@ function tryAssign(days, constraints, seed) {
   };
 
   for (const day of days) {
-    const required = day.requirements;
+    // 套用「放寬人力」：依優先順序 PMNT > AESTH > MORN > FULL 減少需求
+    let required = { ...day.requirements };
+    let toDrop = relaxedDays[day.date] || 0;
+    if (toDrop > 0) {
+      for (const shift of ['PMNT', 'AESTH', 'MORN', 'FULL']) {
+        while (toDrop > 0 && required[shift] > 0) {
+          required[shift]--;
+          if (required[shift] === 0) delete required[shift];
+          toDrop--;
+        }
+      }
+    }
     const totalSlots = Object.values(required).reduce((a, b) => a + b, 0);
 
     const available = NURSES.filter(n => !(constraints[n.id] || []).includes(day.date));
@@ -1005,18 +1078,68 @@ function showFailureDiagnosis() {
     }
   });
 
-  let msg = '❌ 無法產生符合限制的排班表！\n\n';
+  showFailureModal(issues);
+}
+
+function showFailureModal(issues) {
+  const modal = document.getElementById('failure-modal');
+  const list = document.getElementById('failure-issues-list');
+  const otherInfo = document.getElementById('failure-other-info');
+
   if (issues.length === 0) {
-    msg += '系統嘗試 3000 種組合都未找到可行解，可能是限制條件交互影響。\n\n建議：\n1. 減少標記為「不可排班」的日期\n2. 確認沒有某幾天大部分人都被限制';
+    list.innerHTML = '<div class="issue-item">系統嘗試 3000 種組合都未找到可行解，可能是限制條件交互影響。<br><br>建議：<br>1. 減少標記為「不可排班」的日期<br>2. 確認沒有某幾天大部分人都被限制</div>';
+    otherInfo.textContent = '';
   } else {
-    msg += `發現 ${issues.length} 個明確問題：\n\n`;
-    issues.forEach((iss, i) => {
-      msg += `${i+1}. 【${iss.date} 日（${iss.dow}）｜${iss.kind}】\n`;
-      msg += `   問題：${iss.detail}\n`;
-      msg += `   建議：${iss.suggest}\n\n`;
+    // 只有「人力不足」類型可以「減少 1 人需求」修復；醫美/預排衝突需另行解除限制
+    let html = '';
+    let relaxableCount = 0;
+    issues.forEach(iss => {
+      const isRelaxable = (iss.kind === '人力不足');
+      if (isRelaxable) {
+        relaxableCount++;
+        html += `<div class="issue-item">
+          <label>
+            <input type="checkbox" class="relax-day-check" data-day="${iss.date}" checked>
+            <div>
+              <strong>${iss.date} 日（${iss.dow}）｜${iss.kind}</strong><br>
+              <span style="font-size:12px;">${iss.detail}</span><br>
+              <span style="font-size:12px;color:#2c5282;">📌 勾選後：當日減少 1 人需求並重新排班（優先去除午晚診 / 醫美 / 早診 / 早午晚診）</span>
+            </div>
+          </label>
+        </div>`;
+      } else {
+        html += `<div class="issue-item" style="border-left-color:#cbd5e0;">
+          <strong>${iss.date} 日（${iss.dow}）｜${iss.kind}</strong><br>
+          <span style="font-size:12px;">${iss.detail}</span><br>
+          <span style="font-size:12px;color:#c53030;">⚠️ 此類問題無法用「減少 1 人」解決，請手動修正：${iss.suggest}</span>
+        </div>`;
+      }
     });
+    list.innerHTML = html;
+    otherInfo.textContent = relaxableCount > 0
+      ? `共 ${issues.length} 個問題，其中 ${relaxableCount} 個可透過「減少 1 人需求」修復。`
+      : `共 ${issues.length} 個問題，均需手動修正限制條件。`;
   }
-  alert(msg);
+  modal.style.display = 'flex';
+}
+
+function closeFailureModal() {
+  document.getElementById('failure-modal').style.display = 'none';
+}
+
+function retryWithRelaxation() {
+  const checks = document.querySelectorAll('.relax-day-check:checked');
+  if (checks.length === 0) {
+    alert('未勾選任何日期。請勾選欲放寬的日期，或按「取消」修正限制。');
+    return;
+  }
+  checks.forEach(cb => {
+    const day = +cb.dataset.day;
+    relaxedDays[day] = (relaxedDays[day] || 0) + 1;
+  });
+  closeFailureModal();
+  // 自動重新觸發排班
+  generateSchedule();
 }
 
 // ========== 復原 / 重置 ==========
